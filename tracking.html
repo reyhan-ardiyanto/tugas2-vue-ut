@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking Delivery Order - SITTA UT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <div id="app">
+        <!-- Header -->
+        <header class="bg-blue-900 text-white shadow-md">
+            <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <span class="bg-blue-600 p-2 rounded-lg font-bold text-lg">UT</span>
+                    <h1 class="text-xl font-semibold tracking-wide">Tracking Delivery Order (DO)</h1>
+                </div>
+                <nav class="space-x-4">
+                    <a href="index.html" class="text-blue-200 hover:text-white transition">Beranda</a>
+                    <a href="stok.html" class="text-blue-200 hover:text-white transition">Stok Bahan Ajar</a>
+                    <a href="tracking.html" class="text-white font-medium border-b-2 border-white pb-1">Tracking DO</a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto px-6 py-8">
+
+            <!-- Cek / Lacak Resi DO -->
+            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 mb-8">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">Lacak Status Pengiriman (DO)</h3>
+                <div class="flex gap-4">
+                    <input type="text" v-model="searchNoDO" placeholder="Masukkan No DO (Contoh: DO2026-0001)" class="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    <button @click="lacakDO" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-medium text-sm shadow-md transition">Cek Resi</button>
+                </div>
+
+                <!-- Hasil Pelacakan -->
+                <div v-if="currentTracking" class="mt-6 p-6 bg-slate-50 rounded-xl border border-slate-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <span class="text-xs font-bold text-blue-600 uppercase" v-text="searchNoDO"></span>
+                            <h4 class="text-base font-bold text-slate-800" v-text="currentTracking.nama + ' (NIM: ' + currentTracking.nim + ')'"></h4>
+                        </div>
+                        <span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold" v-text="currentTracking.status"></span>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs text-slate-600 mb-6">
+                        <div><strong class="block text-slate-400">Ekspedisi</strong> {{ currentTracking.ekspedisi }}</div>
+                        <div><strong class="block text-slate-400">Tanggal Kirim</strong> {{ currentTracking.tanggalKirim }}</div>
+                        <div><strong class="block text-slate-400">Paket</strong> {{ currentTracking.paket }}</div>
+                        <div><strong class="block text-slate-400">Total Harga</strong> Rp {{ currentTracking.total.toLocaleString() }}</div>
+                    </div>
+                    
+                    <h5 class="font-semibold text-xs text-slate-700 uppercase mb-3">Riwayat Perjalanan</h5>
+                    <ul class="space-y-2 text-xs">
+                        <li v-for="log in currentTracking.perjalanan" class="flex items-start space-x-3 bg-white p-3 rounded-lg border border-slate-100">
+                            <span class="font-bold text-blue-600" v-text="log.waktu"></span>
+                            <span class="text-slate-600" v-text="log.keterangan"></span>
+                        </li>
+                    </ul>
+                </div>
+                <div v-if="errorTracking" class="mt-4 p-3 bg-red-50 text-red-700 text-xs rounded-lg font-medium" v-text="errorTracking"></div>
+            </div>
+
+            <!-- Form Input DO Baru -->
+            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">Buat / Input Delivery Order Baru</h3>
+                
+                <div v-if="formDOError" class="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded-lg font-medium" v-text="formDOError"></div>
+                <div v-if="formDOSuccess" class="mb-4 p-3 bg-green-50 text-green-700 text-xs rounded-lg font-medium" v-text="formDOSuccess"></div>
+
+                <form @submit.prevent="submitDO" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nomor DO (Otomatis)</label>
+                            <input type="text" :value="autoGeneratedNoDO" disabled class="w-full bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-sm text-slate-500 font-bold cursor-not-allowed">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">NIM Mahasiswa</label>
+                            <input type="text" v-model="newDO.nim" placeholder="Contoh: 012345678" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Nama Mahasiswa</label>
+                            <input type="text" v-model="newDO.nama" placeholder="Nama lengkap" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Ekspedisi</label>
+                            <select v-model="newDO.ekspedisi" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Pilih Ekspedisi</option>
+                                <option v-for="eks in pengirimanList" :value="eks.nama">{{ eks.nama }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Paket Bahan Ajar</label>
+                            <select v-model="newDO.selectedPaket" @change="onPaketChange" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Pilih Paket Bahan Ajar</option>
+                                <option v-for="p in paketList" :value="p.kode">{{ p.kode }} - {{ p.nama }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Tanggal Kirim</label>
+                            <input type="date" v-model="newDO.tanggalKirim" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <!-- Informasi Detail Isi Paket (Conditional Display) -->
+                    <div v-if="selectedPaketDetail" class="p-4 bg-blue-50/50 rounded-xl border border-blue-100">
+                        <h4 class="font-bold text-xs text-blue-900 uppercase mb-1">Detail Isi Paket: {{ selectedPaketDetail.nama }}</h4>
+                        <p class="text-xs text-slate-600 mb-2">Kode Buku dalam Paket: <span class="font-semibold text-slate-800">{{ selectedPaketDetail.isi.join(', ') }}</span></p>
+                        <p class="text-xs font-bold text-blue-700">Harga Paket: Rp {{ selectedPaketDetail.harga.toLocaleString() }}</p>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl shadow-md transition">
+                        Simpan & Generate Delivery Order
+                    </button>
+                </form>
+            </div>
+
+        </main>
+    </div>
+
+    
+    <script src="js/dataBahanAjar.js"></script>
+    <script src="js/tracking-app.js"></script>
+</body>
+</html>

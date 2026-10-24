@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stok Bahan Ajar - SITTA UT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue.js 2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between">
+
+    <div id="app">
+        <!-- Header -->
+        <header class="bg-blue-900 text-white shadow-md">
+            <div class="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <span class="bg-blue-600 p-2 rounded-lg font-bold text-lg">UT</span>
+                    <h1 class="text-xl font-semibold tracking-wide">Manajemen Stok Bahan Ajar</h1>
+                </div>
+                <nav class="space-x-4">
+                    <a href="index.html" class="text-blue-200 hover:text-white transition">Beranda</a>
+                    <a href="stok.html" class="text-white font-medium border-b-2 border-white pb-1">Stok Bahan Ajar</a>
+                    <a href="tracking.html" class="text-blue-200 hover:text-white transition">Tracking DO</a>
+                </nav>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-6 py-8">
+            
+            <!-- Notifikasi Watcher -->
+            <div v-if="alertMessage" class="mb-6 p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-800 rounded-r-lg shadow-sm flex justify-between items-center transition">
+                <p class="text-sm font-medium" v-text="alertMessage"></p>
+                <button @click="alertMessage = ''" class="text-amber-600 hover:text-amber-800 font-bold">&times;</button>
+            </div>
+
+            <!-- Bagian Filter & Kontrol -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    
+                    <!-- Filter UT-Daerah (Dependent Parent) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">UT-Daerah</label>
+                        <select v-model="selectedUpbjj" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="">-- Semua UT Daerah --</option>
+                            <option v-for="upbjj in upbjjList" :value="upbjj">{{ upbjj }}</option>
+                        </select>
+                    </div>
+
+                    <!-- Filter Kategori (Dependent Child - Muncul jika UT Daerah dipilih/aktif) -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Kategori Mata Kuliah</label>
+                        <select v-model="selectedKategori" :disabled="!selectedUpbjj" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-400">
+                            <option value="">-- Pilih Kategori --</option>
+                            <option v-for="kat in kategoriList" :value="kat">{{ kat }}</option>
+                        </select>
+                    </div>
+
+                    <!-- Filter Re-Order / Safety Stock -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Status Re-Order</label>
+                        <select v-model="filterReorder" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="all">Semua Stok</option>
+                            <option value="low">Menipis / Kosong (Qty < Safety)</option>
+                        </select>
+                    </div>
+
+                    <!-- Sortir -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Urutkan Berdasarkan</label>
+                        <select v-model="sortBy" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="judul">Judul Bahan Ajar</option>
+                            <option value="qty">Jumlah Stok (Qty)</option>
+                            <option value="harga">Harga</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex justify-end">
+                    <button @click="resetFilter" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium text-xs px-4 py-2 rounded-lg transition">
+                        Reset Filter
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabel Data Stok -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-10">
+                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800">Daftar Inventaris Bahan Ajar</h3>
+                    <span class="text-xs text-slate-500" v-text="'Total Data: ' + filteredStok.length"></span>
+                </div>
+
+                <div class="overflow-x-auto">
+    <table class="w-full text-left border-collapse">
+        <thead>
+            <tr class="bg-slate-100/70 text-slate-600 uppercase text-xs tracking-wider">
+                <th class="px-6 py-3 font-semibold">Kode / Judul</th>
+                <th class="px-6 py-3 font-semibold">Kategori & Lokasi</th>
+                <th class="px-6 py-3 font-semibold">UT-Daerah</th>
+                <th class="px-6 py-3 font-semibold">Harga</th>
+                <th class="px-6 py-3 font-semibold text-center">Stok / Safety</th>
+                <th class="px-6 py-3 font-semibold">Status</th>
+                <th class="px-6 py-3 font-semibold">Catatan</th>
+                <th class="px-6 py-3 font-semibold text-center">Aksi</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-sm">
+            <tr v-for="(item, index) in filteredStok" :key="item.kode" class="hover:bg-slate-50/50 transition">
+                <td class="px-6 py-4">
+                    <span class="font-bold text-blue-900 block" v-text="item.kode"></span>
+                    <span class="text-slate-600" v-text="item.judul"></span>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-md font-medium" v-text="item.kategori"></span>
+                    <span class="block text-xs text-slate-400 mt-1">Rak: {{ item.lokasiRak }}</span>
+                </td>
+                <td class="px-6 py-4 font-medium text-slate-700" v-text="item.upbjj"></td>
+                <td class="px-6 py-4 text-slate-700">Rp {{ item.harga.toLocaleString() }}</td>
+                <td class="px-6 py-4 text-center">
+                    <span class="font-bold" :class="item.qty === 0 ? 'text-red-600' : (item.qty < item.safety ? 'text-orange-600' : 'text-slate-800')">
+                        {{ item.qty }}
+                    </span>
+                    <span class="text-xs text-slate-400 block">Min: {{ item.safety }}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <span v-if="item.qty === 0" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                        🔴 Kosong
+                    </span>
+                    <span v-else-if="item.qty < item.safety" class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                        ⚠️ Menipis
+                    </span>
+                    <span v-else class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                        🟢 Aman
+                    </span>
+                </td>
+                <!-- Kolom Catatan menampilkan teks asli dari data -->
+                <td class="px-6 py-4 text-xs text-slate-500" v-html="item.catatanHTML"></td>
+                
+                <!-- Kolom Aksi menempatkan Tombol Edit -->
+                <td class="px-6 py-4 text-center">
+                    <button @click="editStok(item)" class="bg-amber-100 hover:bg-amber-200 text-amber-800 px-3 py-1.5 rounded-lg text-xs font-semibold transition shadow-sm">
+                        ✏️ Edit Qty
+                    </button>
+                </td>
+            </tr>
+            <tr v-if="filteredStok.length === 0">
+                <td colspan="8" class="px-6 py-8 text-center text-slate-400 italic">
+                    Tidak ada data bahan ajar yang sesuai dengan filter.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+            </div>
+
+            <!-- Form Tambah Stok Baru -->
+            <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 max-w-2xl mx-auto">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">Tambah Data Bahan Ajar Baru</h3>
+                
+                <div v-if="formError" class="mb-4 p-3 bg-red-50 text-red-700 text-xs rounded-lg font-medium" v-text="formError"></div>
+
+                <form @submit.prevent="tambahStok" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Kode Mata Kuliah</label>
+                            <input type="text" v-model="form.kode" placeholder="Contoh: ADPU4332" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Judul Bahan Ajar</label>
+                            <input type="text" v-model="form.judul" placeholder="Judul Buku" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Kategori</label>
+                            <select v-model="form.kategori" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Pilih Kategori</option>
+                                <option v-for="kat in kategoriList" :value="kat">{{ kat }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">UT-Daerah</label>
+                            <select v-model="form.upbjj" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                <option value="">Pilih UPBJJ</option>
+                                <option v-for="u in upbjjList" :value="u">{{ u }}</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Lokasi Rak</label>
+                            <input type="text" v-model="form.lokasiRak" placeholder="R1-B1" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Harga (Rp)</label>
+                            <input type="number" v-model.number="form.harga" placeholder="60000" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Jumlah Stok (Qty)</label>
+                            <input type="number" v-model.number="form.qty" placeholder="20" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Safety Stock</label>
+                            <input type="number" v-model.number="form.safety" placeholder="10" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Catatan HTML</label>
+                        <input type="text" v-model="form.catatanHTML" placeholder="Contoh: <strong>Edisi Revisi</strong>" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-xl shadow-md transition">
+                        Simpan Data Bahan Ajar
+                    </button>
+                </form>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- Script Data & Aplikasi Vue -->
+    <script src="js/dataBahanAjar.js"></script>
+    <script src="js/stok-app.js"></script>
+</body>
+</html>
